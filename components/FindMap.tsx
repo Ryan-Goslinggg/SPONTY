@@ -58,7 +58,9 @@ function ClickToPin({ onPick }: { onPick: (p: LatLng) => void }) {
  */
 function ExposeMap({ onReady }: { onReady?: (map: L.Map) => void }) {
   const map = useMap();
-  useEffect(() => onReady?.(map), [map, onReady]);
+  useEffect(() => {
+    onReady?.(map);
+  }, [map, onReady]);
   return null;
 }
 

@@ -28,6 +28,10 @@ export default function PrivacyPage() {
           shares your position once. Your profile keeps it rounded to about 1 km. We never track you in the background.
         </li>
         <li>
+          <strong>Camera, only when you open it:</strong> the in-app camera runs only while its screen is open and
+          stops as soon as you close it. Only the photos you choose to post are kept.
+        </li>
+        <li>
           <strong>Your choices:</strong> whether you accepted the Terms, confirmed your age, allowed AI matching, and your
           cookie notice choice.
         </li>

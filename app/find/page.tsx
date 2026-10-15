@@ -6,12 +6,14 @@ import { Avatar } from "@/components/Avatar";
 import { DemoBadge } from "@/components/DemoBadge";
 import type { MapReview } from "@/components/FindMap";
 import { LocateIcon, PinIcon, PlusIcon, SearchIcon, StarIcon } from "@/components/icons";
+import { usePermissions } from "@/components/PermissionProvider";
 import { Field } from "@/components/ProfileSheet";
 import { Sheet } from "@/components/Sheet";
 import { useToast } from "@/components/Toast";
 import { timeAgo } from "@/lib/format";
 import { distanceMeters, isWithinRadius, PIN_DIAMETER_M } from "@/lib/geo";
-import { getCurrentPosition, searchPlaces } from "@/lib/geocode";
+import { searchPlaces } from "@/lib/geocode";
+import { isCancelled } from "@/lib/permissions";
 import { reportReview, useReportedReviewIds } from "@/lib/reports";
 import { hasReviewedPlace } from "@/lib/reviews";
 import { ME_ID } from "@/lib/seed";
@@ -37,6 +39,7 @@ export default function FindPage() {
   const [expanded, setExpanded] = useState(true);
   const [reviewing, setReviewing] = useState(false);
   const reported = useReportedReviewIds();
+  const { requestLocation } = usePermissions();
   const mapRef = useRef<LeafletMap | null>(null);
 
   const dropPin = useCallback((p: LatLng, fly = false) => {
@@ -67,10 +70,10 @@ export default function FindPage() {
 
   async function locate() {
     try {
-      const p = await getCurrentPosition();
+      const p = await requestLocation();
       dropPin(p, true);
     } catch (e) {
-      toast((e as Error).message);
+      if (!isCancelled(e)) toast((e as Error).message);
     }
   }
 
@@ -88,7 +91,9 @@ export default function FindPage() {
             setExpanded(true);
           }}
           flyTarget={flyTarget}
-          onReady={(m) => (mapRef.current = m)}
+          onReady={(m) => {
+            mapRef.current = m;
+          }}
         />
       </div>
 

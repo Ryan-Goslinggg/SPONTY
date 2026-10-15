@@ -45,6 +45,14 @@
     60% { transform: scale(1); opacity: 1; }
     100% { transform: scale(1.1); opacity: 0; }
   }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+  @keyframes flash {
+    from { opacity: 0.9; }
+    to { opacity: 0; }
+  }
   @keyframes shimmer {
     from { background-position: -200% 0; }
     to { background-position: 200% 0; }

@@ -1,5 +1,5 @@
 /** Downscale an uploaded photo to a JPEG data URL so it fits in browser storage. */
-export async function fileToCompressedDataUrl(file: File, maxSide = 1080, quality = 0.75): Promise<string> {
+export async function fileToCompressedDataUrl(file: Blob, maxSide = 1080, quality = 0.75): Promise<string> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");

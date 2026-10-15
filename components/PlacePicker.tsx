@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getCurrentPosition, reverseGeocode, searchPlaces } from "@/lib/geocode";
+import { reverseGeocode, searchPlaces } from "@/lib/geocode";
+import { isCancelled } from "@/lib/permissions";
 import type { Place } from "@/lib/types";
 import { LocateIcon, PinIcon, SearchIcon } from "./icons";
+import { usePermissions } from "./PermissionProvider";
 
 /** Search a place by name, or use the device location. */
 export function PlacePicker({ value, onChange }: { value: Place | null; onChange: (p: Place) => void }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Place[]>([]);
   const [status, setStatus] = useState<string | null>(null);
+  const { requestLocation } = usePermissions();
 
   useEffect(() => {
     const q = query.trim();
@@ -32,16 +35,16 @@ export function PlacePicker({ value, onChange }: { value: Place | null; onChange
   }, [query]);
 
   async function useMyLocation() {
-    setStatus("Finding you...");
     try {
-      const pos = await getCurrentPosition();
+      const pos = await requestLocation();
+      setStatus("Finding you...");
       const name = (await reverseGeocode(pos)) ?? "Current location";
       onChange({ name, ...pos });
       setStatus(null);
       setQuery("");
       setResults([]);
     } catch (e) {
-      setStatus((e as Error).message);
+      setStatus(isCancelled(e) ? null : (e as Error).message);
     }
   }
 

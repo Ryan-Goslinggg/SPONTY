@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Nunito } from "next/font/google";
 import { BottomNav } from "@/components/BottomNav";
 import { CookieNotice } from "@/components/CookieNotice";
+import { PermissionProvider } from "@/components/PermissionProvider";
 import { ToastProvider } from "@/components/Toast";
 import { WelcomeGate } from "@/components/WelcomeGate";
 import { StoreProvider } from "@/lib/store";
@@ -34,11 +35,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ToastProvider>
           <WelcomeGate>
             <StoreProvider>
-              <main id="main" className="mx-auto min-h-dvh w-full max-w-md px-4">
-                {children}
-              </main>
-              <BottomNav />
-              <CookieNotice />
+              <PermissionProvider>
+                <main id="main" className="mx-auto min-h-dvh w-full max-w-md px-4">
+                  {children}
+                </main>
+                <BottomNav />
+                <CookieNotice />
+              </PermissionProvider>
             </StoreProvider>
           </WelcomeGate>
         </ToastProvider>

@@ -63,6 +63,9 @@ If you ever add analytics or ads, replace the notice with a real choice (Accept 
 - Profile location is rounded to about 1 km (`coarsen` in `lib/privacy.ts`).
 - Location is only read when the user taps "Here" or the locate button, never in the background.
 - Uploaded photos are re-encoded in the browser, which strips EXIF metadata such as GPS position.
+- Location and camera use a "soft ask" first (`components/PermissionProvider.tsx`): a screen explains why, and only "Allow" triggers the browser prompt.
+  "Not now" is just as prominent, and a blocked permission shows how to turn it back on.
+- The in-app camera (`components/CameraSheet.tsx`) stops its stream the moment it closes.
 - `/api/match` gets only name, bio, hobbies, and area, and only for people who aren't friends yet.
 - No analytics, ad SDKs, or fingerprinting.
 
