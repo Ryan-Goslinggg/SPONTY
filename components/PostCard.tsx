@@ -2,16 +2,15 @@
 
 import { useRef, useState } from "react";
 import { timeAgo } from "@/lib/format";
-import { ME_ID } from "@/lib/seed";
 import { useStore } from "@/lib/store";
 import type { Post } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import { HeartIcon, PinIcon } from "./icons";
 
 export function PostCard({ post, index }: { post: Post; index: number }) {
-  const { userById, isFriend, toggleLike } = useStore();
+  const { me, userById, isFriend, toggleLike } = useStore();
   const author = userById(post.authorId);
-  const liked = post.likes.includes(ME_ID);
+  const liked = post.likedByMe;
   const [burst, setBurst] = useState(0);
   const [slide, setSlide] = useState(0);
   const lastTap = useRef(0);
@@ -36,7 +35,7 @@ export function PostCard({ post, index }: { post: Post; index: number }) {
         <Avatar user={author} size={40} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="truncate font-extrabold">{author.id === ME_ID ? "You" : author.name}</span>
+            <span className="truncate font-extrabold">{author.id === me.id ? "You" : author.name}</span>
             {isFriend(author.id) && (
               <span className="rounded-full bg-mint-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-mint-700">
                 friend
@@ -63,7 +62,7 @@ export function PostCard({ post, index }: { post: Post; index: number }) {
             onClick={onPhotoTap}
           >
             {post.photos.map((src, i) => (
-              // Photos are remote seeds or uploads stored as data URLs, so next/image adds nothing here.
+              // Photos come from Blob storage (or remote demo seeds) already sized for the feed, so next/image adds little here.
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={i}
@@ -105,7 +104,7 @@ export function PostCard({ post, index }: { post: Post; index: number }) {
           className={`press -ml-1.5 flex items-center gap-1.5 rounded-full px-1.5 py-1 text-sm font-bold ${liked ? "text-rose-400" : "text-ink-soft hover:text-rose-400"}`}
         >
           <HeartIcon size={22} filled={liked} className={liked ? "animate-pop" : ""} />
-          {post.likes.length}
+          {post.likeCount}
         </button>
         {post.caption && <p className="mt-1.5 text-[15px] leading-relaxed">{post.caption}</p>}
       </div>

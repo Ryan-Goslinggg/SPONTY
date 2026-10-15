@@ -1,8 +1,11 @@
-import type { LatLng } from "./types";
+import type { LatLng, Place } from "./types";
 
 /** The pin circle is 500m in diameter. */
 export const PIN_DIAMETER_M = 500;
 export const PIN_RADIUS_M = PIN_DIAMETER_M / 2;
+
+/** Where new accounts start until they set their own location. */
+export const DEFAULT_PLACE: Place = { name: "Manila", lat: 14.5995, lng: 120.9842 };
 
 const EARTH_RADIUS_M = 6_371_000;
 

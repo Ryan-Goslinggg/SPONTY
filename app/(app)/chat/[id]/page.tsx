@@ -5,22 +5,26 @@ import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { BackIcon, SendIcon } from "@/components/icons";
-import { ME_ID } from "@/lib/seed";
 import { useStore } from "@/lib/store";
 
 export default function ChatThreadPage() {
   const { id } = useParams<{ id: string }>();
-  const { state, userById, isFriend, sendMessage } = useStore();
+  const { state, me, userById, isFriend, sendMessage, loadThread } = useStore();
   const friend = userById(id);
   const messages = state.messages.filter((m) => m.threadId === id);
   const [draft, setDraft] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
+  const friendsWith = isFriend(id);
+  useEffect(() => {
+    if (friendsWith) loadThread(id);
+  }, [id, friendsWith, loadThread]);
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length]);
 
-  if (!friend || !isFriend(id)) {
+  if (!friend || !friendsWith) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3 text-center">
         <p className="font-extrabold">This chat isn&apos;t available</p>
@@ -48,7 +52,7 @@ export default function ChatThreadPage() {
           <p className="py-10 text-center text-sm text-ink-soft">Plan your next spontaneous trip with {friend.name.split(" ")[0]}.</p>
         )}
         {messages.map((m) => {
-          const mine = m.fromId === ME_ID;
+          const mine = m.fromId === me.id;
           return (
             <div key={m.id} className={`flex animate-pop ${mine ? "justify-end" : "justify-start"}`}>
               <p

@@ -3,28 +3,18 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { distanceMeters, formatDistance } from "@/lib/geo";
 import { clampScore, heuristicMatch, rankMatches } from "@/lib/match";
-import type { MatchCandidate, MatchResult } from "@/lib/types";
+import { getSessionUser } from "@/lib/server/auth";
+import { getDb } from "@/lib/server/db";
+import { consumeRateLimit, getUser, suggestionPool } from "@/lib/server/queries";
+import type { MatchCandidate, MatchResult, User } from "@/lib/types";
 
 export const runtime = "nodejs";
 
-const PlaceSchema = z.object({
-  name: z.string().max(120),
-  lat: z.number().min(-90).max(90),
-  lng: z.number().min(-180).max(180),
-});
-
-const CandidateSchema = z.object({
-  id: z.string().max(64),
-  name: z.string().max(80),
-  bio: z.string().max(600),
-  hobbies: z.array(z.string().max(60)).max(20),
-  location: PlaceSchema,
-});
-
-const RequestSchema = z.object({
-  me: CandidateSchema,
-  candidates: z.array(CandidateSchema).min(1).max(25),
-});
+/** Each AI call costs credits, so callers are limited per user (burst and daily). */
+const LIMITS = [
+  { name: "minute", max: 6, windowSec: 60 },
+  { name: "day", max: 100, windowSec: 60 * 60 * 24 },
+];
 
 const OutputSchema = z.object({
   matches: z.array(
@@ -52,18 +42,36 @@ function heuristic(me: MatchCandidate, candidates: MatchCandidate[]): MatchResul
   return rankMatches(candidates.map((c) => heuristicMatch(me, c)));
 }
 
-export async function POST(req: Request) {
-  let body: z.infer<typeof RequestSchema>;
-  try {
-    body = RequestSchema.parse(await req.json());
-  } catch {
-    return Response.json({ error: "Invalid request" }, { status: 400 });
-  }
-  const { me, candidates } = body;
+const toCandidate = (u: User): MatchCandidate => ({ id: u.id, name: u.name, bio: u.bio, hobbies: u.hobbies, location: u.location });
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return Response.json({ source: "heuristic", matches: heuristic(me, candidates) });
+/**
+ * Ranks people the signed-in user isn't friends with yet. Profiles come from
+ * the database, never the request, so nobody can spend AI credits on
+ * arbitrary prompts. Returns the candidates' profiles alongside the scores.
+ */
+export async function POST() {
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Sign in to see suggestions" }, { status: 401 });
+
+  const db = getDb();
+  for (const l of LIMITS) {
+    const r = await consumeRateLimit(db, `match:${l.name}:${user.id}`, l.max, l.windowSec);
+    if (!r.ok) {
+      return Response.json(
+        { error: "Too many requests. Try again later." },
+        { status: 429, headers: { "Retry-After": String(r.retryAfterSec) } },
+      );
+    }
   }
+
+  const [meUser, pool] = await Promise.all([getUser(db, user.id), suggestionPool(db, user.id)]);
+  if (!meUser || pool.length === 0) return Response.json({ source: "heuristic", matches: [], users: pool });
+  const { source, matches } = await score(toCandidate(meUser), pool.map(toCandidate));
+  return Response.json({ source, matches, users: pool });
+}
+
+async function score(me: MatchCandidate, candidates: MatchCandidate[]): Promise<{ source: "ai" | "heuristic"; matches: MatchResult[] }> {
+  if (!process.env.ANTHROPIC_API_KEY) return { source: "heuristic", matches: heuristic(me, candidates) };
 
   try {
     const client = new Anthropic();
@@ -81,7 +89,7 @@ export async function POST(req: Request) {
     });
 
     if (response.stop_reason === "refusal" || !response.parsed_output) {
-      return Response.json({ source: "heuristic", matches: heuristic(me, candidates) });
+      return { source: "heuristic", matches: heuristic(me, candidates) };
     }
 
     // Keep only known ids and fill any the model skipped with the heuristic.
@@ -90,9 +98,9 @@ export async function POST(req: Request) {
       const m = byId.get(c.id);
       return m ? { id: c.id, score: clampScore(m.score), reason: m.reason } : heuristicMatch(me, c);
     });
-    return Response.json({ source: "ai", matches: rankMatches(matches) });
+    return { source: "ai", matches: rankMatches(matches) };
   } catch (err) {
     console.error("match: AI scoring failed, using heuristic", err);
-    return Response.json({ source: "heuristic", matches: heuristic(me, candidates) });
+    return { source: "heuristic", matches: heuristic(me, candidates) };
   }
 }

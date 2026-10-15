@@ -5,11 +5,10 @@ import { AddFriendPanel } from "@/components/AddFriendPanel";
 import { Avatar } from "@/components/Avatar";
 import { TopBar } from "@/components/TopBar";
 import { timeAgo } from "@/lib/format";
-import { ME_ID } from "@/lib/seed";
 import { useStore } from "@/lib/store";
 
 export default function ChatListPage() {
-  const { state, userById } = useStore();
+  const { state, me, userById } = useStore();
 
   const threads = state.friends
     .map((id) => {
@@ -22,7 +21,7 @@ export default function ChatListPage() {
 
   return (
     <div className="animate-fade-in pb-32">
-      <TopBar title="Chat" subtitle={`${threads.length} friends`} />
+      <TopBar title="Chat" subtitle={`${threads.length} ${threads.length === 1 ? "friend" : "friends"}`} />
 
       {threads.length === 0 ? (
         <p className="py-10 text-center text-sm text-ink-soft">No friends yet. Scroll down to find your people.</p>
@@ -41,7 +40,7 @@ export default function ChatListPage() {
                     {last && <span className="shrink-0 text-[11px] font-semibold text-ink-soft">{timeAgo(last.createdAt)}</span>}
                   </div>
                   <p className="truncate text-sm text-ink-soft">
-                    {last ? `${last.fromId === ME_ID ? "You: " : ""}${last.text}` : `Say hi to ${user!.name.split(" ")[0]}`}
+                    {last ? `${last.fromId === me.id ? "You: " : ""}${last.text}` : `Say hi to ${user!.name.split(" ")[0]}`}
                   </p>
                 </div>
               </Link>

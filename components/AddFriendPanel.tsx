@@ -2,34 +2,25 @@
 
 import { useEffect, useRef, useState } from "react";
 import { distanceMeters, formatDistance } from "@/lib/geo";
-import { heuristicMatch, rankMatches } from "@/lib/match";
-import { ME_ID } from "@/lib/seed";
 import { useStore } from "@/lib/store";
-import type { MatchCandidate, MatchResult, User } from "@/lib/types";
+import type { MatchResult, User } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import { CheckIcon, PlusIcon, SparkleIcon } from "./icons";
 import { useToast } from "./Toast";
 
-const toCandidate = (u: User): MatchCandidate => ({
-  id: u.id,
-  name: u.name,
-  bio: u.bio,
-  hobbies: u.hobbies,
-  location: u.location,
-});
-
 type Source = "ai" | "heuristic";
+type Suggestions = { key: string; source: Source; matches: MatchResult[]; users: User[]; error?: string };
 
 /**
  * Revealed when the user scrolls to the bottom of the chat list. Ranks people
  * who aren't friends yet by how well they match the user's bio, hobbies and location.
  */
 export function AddFriendPanel() {
-  const { state, me, addFriend, isFriend, userById } = useStore();
+  const { me, addFriend, isFriend } = useStore();
   const toast = useToast();
   const sentinel = useRef<HTMLDivElement>(null);
   const [revealed, setRevealed] = useState(false);
-  const [result, setResult] = useState<{ key: string; source: Source; matches: MatchResult[] } | null>(null);
+  const [result, setResult] = useState<Suggestions | null>(null);
   // Friends added while the panel is open stay visible with a check mark.
   const [justAdded, setJustAdded] = useState<string[]>([]);
 
@@ -46,35 +37,31 @@ export function AddFriendPanel() {
     return () => io.disconnect();
   }, []);
 
-  const candidates = state.users.filter((u) => u.id !== ME_ID && (!isFriend(u.id) || justAdded.includes(u.id)));
   // Re-score when the profile changes. Adding a friend must not trigger a re-score.
   const profileKey = JSON.stringify([me.bio, me.hobbies, me.location]);
 
   useEffect(() => {
     if (!revealed) return;
-    const pool = state.users.filter((u) => u.id !== ME_ID && !state.friends.includes(u.id));
-    if (pool.length === 0) return;
     const ctrl = new AbortController();
-    const meC = toCandidate(me);
-    fetch("/api/match", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ me: meC, candidates: pool.map(toCandidate) }),
-      signal: ctrl.signal,
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((data: { source: Source; matches: MatchResult[] }) => setResult({ key: profileKey, ...data }))
+    // The server picks the candidates (nearest non-friends) and scores them.
+    fetch("/api/match", { method: "POST", signal: ctrl.signal })
+      .then(async (r) => {
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(body.error ?? "Couldn't load suggestions right now.");
+        return body as Omit<Suggestions, "key">;
+      })
+      .then((data) => setResult({ key: profileKey, ...data }))
       .catch((e: unknown) => {
         if ((e as Error).name === "AbortError") return;
-        // Offline or API down: score in the browser so suggestions still appear.
-        setResult({ key: profileKey, source: "heuristic", matches: rankMatches(pool.map((u) => heuristicMatch(meC, toCandidate(u)))) });
+        const error = e instanceof TypeError ? "You're offline. Suggestions will be back when you are." : (e as Error).message;
+        setResult({ key: profileKey, source: "heuristic", matches: [], users: [], error });
       });
     return () => ctrl.abort();
-    // profileKey captures every input that should trigger a re-score.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealed, profileKey]);
 
-  const loading = revealed && (!result || result.key !== profileKey) && candidates.length > 0;
+  const loading = revealed && (!result || result.key !== profileKey);
+  const userById = new Map(result?.users.map((u) => [u.id, u]));
+  const candidates = result?.users.filter((u) => !isFriend(u.id) || justAdded.includes(u.id)) ?? [];
 
   return (
     <>
@@ -93,7 +80,10 @@ export function AddFriendPanel() {
           {result?.source === "ai" ? "AI-picked" : "Picked"} from your bio, hobbies and where you are.
         </p>
 
-        {candidates.length === 0 && <p className="py-6 text-center text-sm text-ink-soft">You&apos;re friends with everyone here!</p>}
+        {!loading && result?.error && <p className="py-6 text-center text-sm text-ink-soft">{result.error}</p>}
+        {!loading && result && !result.error && candidates.length === 0 && (
+          <p className="py-6 text-center text-sm text-ink-soft">You&apos;re friends with everyone here!</p>
+        )}
 
         {loading && (
           <ul className="space-y-3">
@@ -106,7 +96,7 @@ export function AddFriendPanel() {
         {!loading && result && (
           <ul className="space-y-3">
             {result.matches.map((m, i) => {
-              const u = userById(m.id);
+              const u = userById.get(m.id);
               const added = isFriend(m.id);
               if (!u || (added && !justAdded.includes(m.id))) return null;
               return (
@@ -130,7 +120,7 @@ export function AddFriendPanel() {
                     type="button"
                     disabled={added}
                     onClick={() => {
-                      addFriend(u.id);
+                      addFriend(u);
                       setJustAdded((a) => [...a, u.id]);
                       toast(`You and ${u.name.split(" ")[0]} are now friends`);
                     }}

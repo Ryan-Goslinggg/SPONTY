@@ -9,10 +9,9 @@ import { Field } from "@/components/ProfileSheet";
 import { Sheet } from "@/components/Sheet";
 import { useToast } from "@/components/Toast";
 import { timeAgo } from "@/lib/format";
-import { distanceMeters, isWithinRadius, PIN_DIAMETER_M } from "@/lib/geo";
+import { distanceMeters, PIN_DIAMETER_M } from "@/lib/geo";
 import { getCurrentPosition, searchPlaces } from "@/lib/geocode";
-import { ME_ID } from "@/lib/seed";
-import { useStore } from "@/lib/store";
+import { useNearbyReviews, useStore } from "@/lib/store";
 import type { LatLng, Place, ReviewCategory } from "@/lib/types";
 
 // Leaflet touches `window`, so the map only renders in the browser.
@@ -24,7 +23,7 @@ const FindMap = dynamic(() => import("@/components/FindMap"), {
 type Mode = "close" | "open";
 
 export default function FindPage() {
-  const { state, me, userById, isFriend } = useStore();
+  const { me, userById, isFriend } = useStore();
   const toast = useToast();
   const [mode, setMode] = useState<Mode>("close");
   const [pin, setPin] = useState<LatLng | null>(null);
@@ -40,21 +39,20 @@ export default function FindPage() {
     if (fly) setFlyTarget({ ...p, key: Date.now() });
   }, []);
 
-  const visible: MapReview[] = useMemo(() => {
-    if (!pin) return [];
-    return state.reviews
-      .filter((r) => isWithinRadius(pin, r))
-      .filter((r) => mode === "open" || r.authorId === ME_ID || isFriend(r.authorId))
-      .map((review) => ({ review, author: userById(review.authorId)!, friend: isFriend(review.authorId) }))
-      .filter((r) => r.author)
-      .sort((a, b) => distanceMeters(pin, a.review) - distanceMeters(pin, b.review));
-  }, [pin, mode, state.reviews, isFriend, userById]);
+  // Everyone's reviews inside the circle, nearest first, straight from the radius query.
+  const nearby = useNearbyReviews(pin);
+
+  const visible: MapReview[] = useMemo(
+    () =>
+      nearby.reviews
+        .filter((r) => mode === "open" || r.authorId === me.id || isFriend(r.authorId))
+        .map((review) => ({ review, author: userById(review.authorId)!, friend: isFriend(review.authorId) }))
+        .filter((r) => r.author),
+    [nearby.reviews, mode, me.id, isFriend, userById],
+  );
 
   // How many more pins the other mode would reveal, to nudge switching.
-  const hiddenInOpen = useMemo(
-    () => (pin && mode === "close" ? state.reviews.filter((r) => isWithinRadius(pin, r)).length - visible.length : 0),
-    [pin, mode, state.reviews, visible.length],
-  );
+  const hiddenInOpen = mode === "close" ? nearby.reviews.length - visible.length : 0;
 
   async function locate() {
     try {
@@ -132,7 +130,9 @@ export default function FindPage() {
             >
               <div>
                 <p className="font-extrabold">
-                  {visible.length} {visible.length === 1 ? "review" : "reviews"} within {PIN_DIAMETER_M}m
+                  {nearby.loading && visible.length === 0
+                    ? "Looking around..."
+                    : `${visible.length} ${visible.length === 1 ? "review" : "reviews"} within ${PIN_DIAMETER_M}m`}
                 </p>
                 <p className="text-xs font-semibold text-ink-soft">
                   {mode === "close" ? "Friends only" : "Everyone"}
@@ -145,7 +145,7 @@ export default function FindPage() {
             <div className={`grid transition-[grid-template-rows] duration-400 ease-[var(--ease-bounce)] ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
               <div className="overflow-hidden">
                 <ul className="no-scrollbar max-h-[30dvh] space-y-2 overflow-y-auto px-3 pb-2">
-                  {visible.length === 0 && (
+                  {visible.length === 0 && !nearby.loading && (
                     <li className="px-2 py-4 text-center text-sm text-ink-soft">
                       {mode === "close" ? "None of your friends have reviewed this area yet." : "No one has reviewed this area yet."} Be the first!
                     </li>
@@ -171,7 +171,7 @@ export default function FindPage() {
                           <div className="flex items-center gap-1 text-[11px] font-semibold text-ink-soft">
                             <Stars value={review.rating} />
                             <span>
-                              {author.id === ME_ID ? "You" : author.name}
+                              {author.id === me.id ? "You" : author.name}
                               {friend && " · friend"} · {timeAgo(review.createdAt)}
                             </span>
                           </div>
@@ -281,15 +281,19 @@ function ReviewForm({ at, onDone }: { at: LatLng; onDone: () => void }) {
   const [category, setCategory] = useState<ReviewCategory>("food");
   const [rating, setRating] = useState(5);
   const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
   const valid = placeName.trim() && text.trim();
 
   return (
     <form
       className="space-y-4"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        if (!valid) return;
-        addReview({ placeName: placeName.trim(), category, rating, text: text.trim(), lat: at.lat, lng: at.lng });
+        if (!valid || busy) return;
+        setBusy(true);
+        const ok = await addReview({ placeName: placeName.trim(), category, rating, text: text.trim(), lat: at.lat, lng: at.lng });
+        setBusy(false);
+        if (!ok) return;
         toast("Review pinned");
         onDone();
       }}
@@ -339,10 +343,10 @@ function ReviewForm({ at, onDone }: { at: LatLng; onDone: () => void }) {
       </Field>
       <button
         type="submit"
-        disabled={!valid}
+        disabled={!valid || busy}
         className="press w-full rounded-2xl bg-mint-500 py-3 font-extrabold text-white shadow-md shadow-mint-500/30 hover:bg-mint-600 disabled:bg-mint-200 disabled:shadow-none"
       >
-        Pin review
+        {busy ? "Pinning..." : "Pin review"}
       </button>
     </form>
   );
