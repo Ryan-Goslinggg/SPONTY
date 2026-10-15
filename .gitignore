@@ -6,3 +6,6 @@ out/
 next-env.d.ts
 .env*.local
 .env
+
+# Local photo uploads (dev storage driver)
+.data/

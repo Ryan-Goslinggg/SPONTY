@@ -18,13 +18,14 @@ export function ProfileSheet({ open, onClose }: { open: boolean; onClose: () => 
 }
 
 function ProfileForm({ onDone }: { onDone: () => void }) {
-  const { me, updateProfile, resetDemo } = useStore();
+  const { me, updateProfile, signOut } = useStore();
   const toast = useToast();
   const [name, setName] = useState(me.name);
   const [bio, setBio] = useState(me.bio);
   const [hobbies, setHobbies] = useState(me.hobbies);
   const [hobbyDraft, setHobbyDraft] = useState("");
   const [location, setLocation] = useState<Place>(me.location);
+  const [busy, setBusy] = useState(false);
 
   function addHobby() {
     const h = hobbyDraft.trim();
@@ -35,9 +36,13 @@ function ProfileForm({ onDone }: { onDone: () => void }) {
   return (
     <form
       className="space-y-4"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        updateProfile({ name: name.trim() || "You", bio: bio.trim(), hobbies, location });
+        if (busy) return;
+        setBusy(true);
+        const ok = await updateProfile({ name: name.trim() || me.name, bio: bio.trim(), hobbies, location });
+        setBusy(false);
+        if (!ok) return;
         toast("Profile saved");
         onDone();
       }}
@@ -81,21 +86,15 @@ function ProfileForm({ onDone }: { onDone: () => void }) {
       <Field label="Where you are">
         <PlacePicker value={location} onChange={setLocation} />
       </Field>
-      <button type="submit" className="press w-full rounded-2xl bg-mint-500 py-3 font-extrabold text-white shadow-md shadow-mint-500/30 hover:bg-mint-600">
-        Save
-      </button>
       <button
-        type="button"
-        onClick={() => {
-          if (confirm("Reset all demo data on this device?")) {
-            resetDemo();
-            toast("Demo data reset");
-            onDone();
-          }
-        }}
-        className="w-full py-2 text-xs font-semibold text-ink-soft hover:text-ink"
+        type="submit"
+        disabled={busy}
+        className="press w-full rounded-2xl bg-mint-500 py-3 font-extrabold text-white shadow-md shadow-mint-500/30 hover:bg-mint-600 disabled:bg-mint-200 disabled:shadow-none"
       >
-        Reset demo data
+        {busy ? "Saving..." : "Save"}
+      </button>
+      <button type="button" onClick={() => void signOut()} className="w-full py-2 text-xs font-semibold text-ink-soft hover:text-ink">
+        Sign out
       </button>
     </form>
   );

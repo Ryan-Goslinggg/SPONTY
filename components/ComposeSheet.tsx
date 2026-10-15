@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { fileToCompressedDataUrl } from "@/lib/image";
+import { useEffect, useRef, useState } from "react";
+import { compressPhoto } from "@/lib/image";
 import { useStore } from "@/lib/store";
 import type { Place } from "@/lib/types";
 import { CameraIcon, CloseIcon } from "./icons";
@@ -11,6 +11,8 @@ import { Sheet } from "./Sheet";
 import { useToast } from "./Toast";
 
 const MAX_PHOTOS = 4;
+
+type Photo = { blob: Blob; preview: string };
 
 export function ComposeSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
@@ -25,16 +27,32 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
   const toast = useToast();
   const [place, setPlace] = useState<Place | null>(null);
   const [caption, setCaption] = useState("");
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<Photo[]>([]);
   const [busy, setBusy] = useState(false);
+  const [posting, setPosting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Free preview URLs when photos are removed or the sheet closes.
+  const previews = useRef(new Set<string>());
+  useEffect(() => {
+    const set = previews.current;
+    return () => set.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
+  function removePhoto(i: number) {
+    const url = photos[i].preview;
+    URL.revokeObjectURL(url);
+    previews.current.delete(url);
+    setPhotos(photos.filter((_, j) => j !== i));
+  }
 
   async function onFiles(files: FileList | null) {
     if (!files?.length) return;
     setBusy(true);
     try {
       const room = MAX_PHOTOS - photos.length;
-      const next = await Promise.all([...files].slice(0, room).map((f) => fileToCompressedDataUrl(f)));
+      const blobs = await Promise.all([...files].slice(0, room).map((f) => compressPhoto(f)));
+      const next = blobs.map((blob) => ({ blob, preview: URL.createObjectURL(blob) }));
+      next.forEach((p) => previews.current.add(p.preview));
       setPhotos((p) => [...p, ...next]);
     } catch {
       toast("Couldn't read that photo");
@@ -44,15 +62,18 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
     }
   }
 
-  const canPost = !!place && (caption.trim().length > 0 || photos.length > 0);
+  const canPost = !!place && (caption.trim().length > 0 || photos.length > 0) && !busy && !posting;
 
   return (
     <form
       className="space-y-4"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         if (!place || !canPost) return;
-        addPost({ place, caption: caption.trim(), photos });
+        setPosting(true);
+        const ok = await addPost({ place, caption: caption.trim(), photos: photos.map((p) => p.blob) });
+        setPosting(false);
+        if (!ok) return;
         toast("Trip shared");
         onDone();
       }}
@@ -62,14 +83,15 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
       </Field>
       <Field label="Photos" hint={`Up to ${MAX_PHOTOS}`}>
         <div className="flex flex-wrap gap-2">
-          {photos.map((src, i) => (
-            <div key={i} className="relative h-20 w-20 animate-pop overflow-hidden rounded-2xl">
+          {photos.map(({ preview }, i) => (
+            <div key={preview} className="relative h-20 w-20 animate-pop overflow-hidden rounded-2xl">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src} alt="" className="h-full w-full object-cover" />
+              <img src={preview} alt="" className="h-full w-full object-cover" />
               <button
                 type="button"
                 aria-label="Remove photo"
-                onClick={() => setPhotos(photos.filter((_, j) => j !== i))}
+                disabled={posting}
+                onClick={() => removePhoto(i)}
                 className="press absolute right-1 top-1 rounded-full bg-white/90 p-0.5 text-ink"
               >
                 <CloseIcon size={14} />
@@ -105,7 +127,7 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
         disabled={!canPost}
         className="press w-full rounded-2xl bg-mint-500 py-3 font-extrabold text-white shadow-md shadow-mint-500/30 hover:bg-mint-600 disabled:bg-mint-200 disabled:shadow-none"
       >
-        Post trip
+        {posting ? "Sharing..." : "Post trip"}
       </button>
     </form>
   );

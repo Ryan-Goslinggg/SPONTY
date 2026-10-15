@@ -25,7 +25,8 @@ export interface Post {
   caption: string;
   photos: string[];
   createdAt: number;
-  likes: string[];
+  likeCount: number;
+  likedByMe: boolean;
 }
 
 export type ReviewCategory = "food" | "spot";
@@ -49,6 +50,18 @@ export interface Message {
   fromId: string;
   text: string;
   createdAt: number;
+}
+
+/** Everything the app needs on first paint for the signed-in user. */
+export interface Snapshot {
+  me: User;
+  /** Everyone referenced by the rest of the snapshot, including `me`. */
+  users: User[];
+  friends: string[];
+  /** Newest first. */
+  posts: Post[];
+  /** Oldest first. Holds the latest message of each thread; full threads load on demand. */
+  messages: Message[];
 }
 
 export interface MatchResult {

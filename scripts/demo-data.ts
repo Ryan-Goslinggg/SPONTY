@@ -1,22 +1,18 @@
-import type { Message, Post, Review, User } from "./types";
+import type { Post, Review, User } from "../lib/types";
 
-export const ME_ID = "u_me";
+/**
+ * Demo community loaded by `npm run db:seed` so a fresh database isn't empty.
+ * Demo people have no password, so nobody can sign in as them.
+ */
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
-/** Seed timestamps are relative to first launch so the demo always looks fresh. */
-export function createSeed(now = Date.now()) {
+type DemoPost = Omit<Post, "likeCount" | "likedByMe"> & { likes: string[] };
+
+/** Timestamps are relative to when the seed runs so the demo looks fresh. */
+export function demoData(now = Date.now()) {
   const users: User[] = [
-    {
-      id: ME_ID,
-      name: "You",
-      handle: "you",
-      tint: "#c8e8d2",
-      bio: "Spontaneous weekend explorer. Always hunting for hole-in-the-wall food and quiet sunset spots.",
-      hobbies: ["Food trips", "Hiking", "Photography"],
-      location: { name: "Manila", lat: 14.5995, lng: 120.9842 },
-    },
     {
       id: "u_mika",
       name: "Mika Santos",
@@ -109,11 +105,20 @@ export function createSeed(now = Date.now()) {
     },
   ];
 
-  const friends = ["u_mika", "u_paolo", "u_andrea", "u_jules"];
+  // Pairs of demo people who are friends with each other.
+  const friendships: [string, string][] = [
+    ["u_mika", "u_paolo"],
+    ["u_mika", "u_jules"],
+    ["u_mika", "u_tess"],
+    ["u_andrea", "u_jules"],
+    ["u_paolo", "u_bea"],
+    ["u_bea", "u_leo"],
+    ["u_nina", "u_mika"],
+  ];
 
   const photo = (id: number) => `https://picsum.photos/id/${id}/900/700`;
 
-  const posts: Post[] = [
+  const posts: DemoPost[] = [
     {
       id: "p1",
       authorId: "u_mika",
@@ -139,7 +144,7 @@ export function createSeed(now = Date.now()) {
       caption: "Flat waves, so we hiked to the falls instead. Spontaneous plan B always wins.",
       photos: [photo(16), photo(1039), photo(28)],
       createdAt: now - 1 * DAY,
-      likes: ["u_mika", ME_ID],
+      likes: ["u_mika"],
     },
     {
       id: "p4",
@@ -202,16 +207,5 @@ export function createSeed(now = Date.now()) {
     R("r13", "u_nina", "Gallery cafe", "food", 4, "Rotating local art on the walls and good pour-over.", 14.5505, 121.0515, 10),
   ];
 
-  const messages: Message[] = [
-    { id: "m1", threadId: "u_mika", fromId: "u_mika", text: "Ramen tonight? I found a new place in Poblacion", createdAt: now - 2 * HOUR },
-    { id: "m2", threadId: "u_mika", fromId: ME_ID, text: "Yes!! What time?", createdAt: now - 2 * HOUR + 5 * 60_000 },
-    { id: "m3", threadId: "u_mika", fromId: "u_mika", text: "8pm, I'll drop the pin on Find", createdAt: now - 2 * HOUR + 8 * 60_000 },
-    { id: "m4", threadId: "u_paolo", fromId: "u_paolo", text: "Elyu this weekend? Waves look good", createdAt: now - 1 * DAY },
-    { id: "m5", threadId: "u_jules", fromId: ME_ID, text: "That halo-halo place was amazing, thanks", createdAt: now - 3 * DAY },
-    { id: "m6", threadId: "u_jules", fromId: "u_jules", text: "Told you! Next stop Binondo", createdAt: now - 3 * DAY + HOUR },
-  ];
-
-  return { users, friends, posts, reviews, messages };
+  return { users, friendships, posts, reviews };
 }
-
-export type SeedState = ReturnType<typeof createSeed>;
