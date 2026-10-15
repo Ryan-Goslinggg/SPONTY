@@ -6,11 +6,11 @@
   --color-mint-200: #cde9d6;
   --color-mint-300: #a8d8b8;
   --color-mint-400: #7fc196;
-  --color-mint-500: #5aa877;
-  --color-mint-600: #438c5f;
-  --color-mint-700: #35704c;
+  --color-mint-500: #3b7d54;
+  --color-mint-600: #2f6b47;
+  --color-mint-700: #275a3c;
   --color-ink: #1f3a2b;
-  --color-ink-soft: #5b7466;
+  --color-ink-soft: #4f6659;
 
   --font-sans: var(--font-nunito), ui-rounded, system-ui, sans-serif;
 
@@ -60,6 +60,12 @@ body {
   background: var(--color-mint-50);
   color: var(--color-ink);
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Visible keyboard focus everywhere (WCAG 2.4.7) */
+:focus-visible {
+  outline: 3px solid var(--color-mint-500);
+  outline-offset: 2px;
 }
 
 .press {
@@ -134,4 +140,39 @@ body {
     border-color: var(--color-mint-400);
     box-shadow: 0 0 0 3px rgb(127 193 150 / 0.25);
   }
+}
+
+/* Long-form legal and about pages */
+.legal h2 {
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 800;
+}
+.legal h3 {
+  margin-top: 1.25rem;
+  margin-bottom: 0.25rem;
+  font-weight: 800;
+}
+.legal p,
+.legal li {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+.legal p + p {
+  margin-top: 0.75rem;
+}
+.legal ul {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+.legal li + li {
+  margin-top: 0.35rem;
+}
+.legal a {
+  color: var(--color-mint-700);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

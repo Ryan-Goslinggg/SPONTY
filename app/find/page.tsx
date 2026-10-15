@@ -1,19 +1,23 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/Avatar";
+import { DemoBadge } from "@/components/DemoBadge";
 import type { MapReview } from "@/components/FindMap";
-import { LocateIcon, PlusIcon, SearchIcon, StarIcon } from "@/components/icons";
+import { LocateIcon, PinIcon, PlusIcon, SearchIcon, StarIcon } from "@/components/icons";
 import { Field } from "@/components/ProfileSheet";
 import { Sheet } from "@/components/Sheet";
 import { useToast } from "@/components/Toast";
 import { timeAgo } from "@/lib/format";
 import { distanceMeters, isWithinRadius, PIN_DIAMETER_M } from "@/lib/geo";
 import { getCurrentPosition, searchPlaces } from "@/lib/geocode";
+import { reportReview, useReportedReviewIds } from "@/lib/reports";
+import { hasReviewedPlace } from "@/lib/reviews";
 import { ME_ID } from "@/lib/seed";
 import { useStore } from "@/lib/store";
 import type { LatLng, Place, ReviewCategory } from "@/lib/types";
+import type { Map as LeafletMap } from "leaflet";
 
 // Leaflet touches `window`, so the map only renders in the browser.
 const FindMap = dynamic(() => import("@/components/FindMap"), {
@@ -32,6 +36,8 @@ export default function FindPage() {
   const [flyTarget, setFlyTarget] = useState<(LatLng & { key: number }) | null>(null);
   const [expanded, setExpanded] = useState(true);
   const [reviewing, setReviewing] = useState(false);
+  const reported = useReportedReviewIds();
+  const mapRef = useRef<LeafletMap | null>(null);
 
   const dropPin = useCallback((p: LatLng, fly = false) => {
     setPin(p);
@@ -43,17 +49,20 @@ export default function FindPage() {
   const visible: MapReview[] = useMemo(() => {
     if (!pin) return [];
     return state.reviews
-      .filter((r) => isWithinRadius(pin, r))
+      .filter((r) => isWithinRadius(pin, r) && !reported.includes(r.id))
       .filter((r) => mode === "open" || r.authorId === ME_ID || isFriend(r.authorId))
       .map((review) => ({ review, author: userById(review.authorId)!, friend: isFriend(review.authorId) }))
       .filter((r) => r.author)
       .sort((a, b) => distanceMeters(pin, a.review) - distanceMeters(pin, b.review));
-  }, [pin, mode, state.reviews, isFriend, userById]);
+  }, [pin, mode, state.reviews, isFriend, userById, reported]);
 
   // How many more pins the other mode would reveal, to nudge switching.
   const hiddenInOpen = useMemo(
-    () => (pin && mode === "close" ? state.reviews.filter((r) => isWithinRadius(pin, r)).length - visible.length : 0),
-    [pin, mode, state.reviews, visible.length],
+    () =>
+      pin && mode === "close"
+        ? state.reviews.filter((r) => isWithinRadius(pin, r) && !reported.includes(r.id)).length - visible.length
+        : 0,
+    [pin, mode, state.reviews, visible.length, reported],
   );
 
   async function locate() {
@@ -79,6 +88,7 @@ export default function FindPage() {
             setExpanded(true);
           }}
           flyTarget={flyTarget}
+          onReady={(m) => (mapRef.current = m)}
         />
       </div>
 
@@ -95,6 +105,16 @@ export default function FindPage() {
             <LocateIcon />
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            const c = mapRef.current?.getCenter();
+            if (c) dropPin({ lat: c.lat, lng: c.lng }, true);
+          }}
+          className="pointer-events-auto sr-only flex items-center gap-1 rounded-full bg-white px-3 py-2 text-xs font-bold text-mint-700 shadow-lg focus:not-sr-only"
+        >
+          <PinIcon size={14} /> Drop pin at map center
+        </button>
         <div className="pointer-events-auto relative mx-auto grid w-56 grid-cols-2 rounded-full bg-white/95 p-1 shadow-lg backdrop-blur">
           <span
             aria-hidden="true"
@@ -174,10 +194,24 @@ export default function FindPage() {
                               {author.id === ME_ID ? "You" : author.name}
                               {friend && " · friend"} · {timeAgo(review.createdAt)}
                             </span>
+                            <DemoBadge userId={author.id} />
                           </div>
                           <p className="mt-0.5 text-sm leading-snug">{review.text}</p>
                         </div>
                       </button>
+                      {author.id !== ME_ID && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            reportReview(review.id);
+                            toast("Thanks - that review is hidden");
+                          }}
+                          className="ml-[3.6rem] rounded text-[11px] font-bold text-ink-soft underline-offset-2 hover:text-ink hover:underline"
+                          aria-label={`Report review of ${review.placeName} as fake or abusive`}
+                        >
+                          Report
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -204,7 +238,7 @@ export default function FindPage() {
 
 function Stars({ value }: { value: number }) {
   return (
-    <span className="flex text-amber-400" aria-label={`${value} out of 5 stars`}>
+    <span className="flex text-amber-700" aria-label={`${value} out of 5 stars`}>
       {[1, 2, 3, 4, 5].map((i) => (
         <StarIcon key={i} size={12} filled={i <= value} />
       ))}
@@ -260,6 +294,7 @@ function PlaceSearch({ onSelect }: { onSelect: (p: Place) => void }) {
               </button>
             </li>
           ))}
+          <li className="px-4 pb-2 pt-1 text-[10px] text-ink-soft">Search data © OpenStreetMap contributors</li>
         </ul>
       )}
     </div>
@@ -275,13 +310,15 @@ function ReviewSheet({ open, onClose, at }: { open: boolean; onClose: () => void
 }
 
 function ReviewForm({ at, onDone }: { at: LatLng; onDone: () => void }) {
-  const { addReview } = useStore();
+  const { addReview, state } = useStore();
   const toast = useToast();
   const [placeName, setPlaceName] = useState("");
   const [category, setCategory] = useState<ReviewCategory>("food");
   const [rating, setRating] = useState(5);
   const [text, setText] = useState("");
-  const valid = placeName.trim() && text.trim();
+  const [beenThere, setBeenThere] = useState(false);
+  const duplicate = placeName.trim() !== "" && hasReviewedPlace(state.reviews, ME_ID, placeName, at);
+  const valid = placeName.trim() && text.trim() && beenThere && !duplicate;
 
   return (
     <form
@@ -296,7 +333,19 @@ function ReviewForm({ at, onDone }: { at: LatLng; onDone: () => void }) {
     >
       <p className="-mt-2 text-xs text-ink-soft">Your review is pinned where you dropped the pin.</p>
       <Field label="Place name">
-        <input value={placeName} onChange={(e) => setPlaceName(e.target.value)} maxLength={80} placeholder="e.g. Corner ramen bar" className="input" />
+        <input
+          value={placeName}
+          onChange={(e) => setPlaceName(e.target.value)}
+          maxLength={80}
+          placeholder="e.g. Corner ramen bar"
+          className="input"
+          aria-describedby={duplicate ? "duplicate-review" : undefined}
+        />
+        {duplicate && (
+          <p id="duplicate-review" role="alert" className="mt-1.5 text-xs font-bold text-rose-700">
+            You already reviewed this place. One review per place keeps ratings honest.
+          </p>
+        )}
       </Field>
       <Field label="What is it?">
         <div className="grid grid-cols-2 gap-2">
@@ -319,7 +368,7 @@ function ReviewForm({ at, onDone }: { at: LatLng; onDone: () => void }) {
         </div>
       </Field>
       <Field label="Rating">
-        <div className="flex gap-1 text-amber-400">
+        <div className="flex gap-1 text-amber-700">
           {[1, 2, 3, 4, 5].map((i) => (
             <button key={i} type="button" onClick={() => setRating(i)} aria-label={`${i} stars`} className="press">
               <StarIcon size={32} filled={i <= rating} />
@@ -337,6 +386,18 @@ function ReviewForm({ at, onDone }: { at: LatLng; onDone: () => void }) {
           className="input resize-none"
         />
       </Field>
+      <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-mint-200 p-3 text-sm leading-snug">
+        <input
+          type="checkbox"
+          checked={beenThere}
+          onChange={(e) => setBeenThere(e.target.checked)}
+          className="mt-0.5 h-5 w-5 shrink-0 accent-mint-500"
+        />
+        <span>
+          I&apos;ve actually been here, and I&apos;m not being paid or rewarded for this review.
+        </span>
+      </label>
+      <p className="text-xs text-ink-soft">Your friends see this review, and everyone does in OPEN mode.</p>
       <button
         type="submit"
         disabled={!valid}

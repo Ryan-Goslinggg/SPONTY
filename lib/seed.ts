@@ -215,3 +215,12 @@ export function createSeed(now = Date.now()) {
 }
 
 export type SeedState = ReturnType<typeof createSeed>;
+
+/** The made-up people (and so their posts and reviews) that ship with the demo. */
+export const DEMO_USER_IDS: ReadonlySet<string> = new Set(
+  createSeed(0)
+    .users.map((u) => u.id)
+    .filter((id) => id !== ME_ID),
+);
+
+export const isDemoUser = (id: string) => DEMO_USER_IDS.has(id);

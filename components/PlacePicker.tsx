@@ -62,7 +62,7 @@ export function PlacePicker({ value, onChange }: { value: Place | null; onChange
               if (e.target.value.trim().length < 3) setResults([]);
             }}
             placeholder="Search a place"
-            className="w-full bg-transparent py-2.5 text-sm outline-none placeholder:text-ink-soft/60"
+            className="w-full bg-transparent py-2.5 text-sm outline-none placeholder:text-ink-soft"
           />
         </label>
         <button
@@ -91,6 +91,7 @@ export function PlacePicker({ value, onChange }: { value: Place | null; onChange
               </button>
             </li>
           ))}
+          <li className="px-3 pb-2 pt-1 text-[10px] text-ink-soft">Search data © OpenStreetMap contributors</li>
         </ul>
       )}
     </div>

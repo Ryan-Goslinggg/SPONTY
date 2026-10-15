@@ -34,7 +34,7 @@ function reviewIcon({ author, friend, review }: MapReview, focused: boolean) {
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -size / 2],
-    html: `<div class="sponty-pin" style="position:relative;width:${size}px;height:${size}px;border-radius:9999px;background:${author.tint};border:3px solid ${friend ? "#5aa877" : "#fff"};box-shadow:0 4px 12px rgba(31,58,43,.35);display:flex;align-items:center;justify-content:center;font:800 ${Math.round(size * 0.34)}px Nunito,system-ui,sans-serif;color:#1f3a2b">${escapeHtml(initials(author.name))}<span style="position:absolute;right:-6px;bottom:-6px;font-size:14px">${badge}</span></div>`,
+    html: `<div class="sponty-pin" role="img" aria-label="${escapeHtml(`${review.placeName}, ${review.rating} of 5 stars, by ${author.name}`)}" style="position:relative;width:${size}px;height:${size}px;border-radius:9999px;background:${author.tint};border:3px solid ${friend ? "#3b7d54" : "#fff"};box-shadow:0 4px 12px rgba(31,58,43,.35);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${Math.round(size * 0.34)}px;color:#1f3a2b">${escapeHtml(initials(author.name))}<span aria-hidden="true" style="position:absolute;right:-6px;bottom:-6px;font-size:14px">${badge}</span></div>`,
   });
 }
 
@@ -42,7 +42,7 @@ const centerIcon = L.divIcon({
   className: "",
   iconSize: [34, 44],
   iconAnchor: [17, 42],
-  html: `<svg width="34" height="44" viewBox="0 0 34 44" style="filter:drop-shadow(0 4px 6px rgba(31,58,43,.4))"><path d="M17 43S2 27.5 2 17a15 15 0 1 1 30 0C32 27.5 17 43 17 43Z" fill="#438c5f" stroke="#fff" stroke-width="3"/><circle cx="17" cy="17" r="6" fill="#fff"/></svg>`,
+  html: `<svg aria-hidden="true" width="34" height="44" viewBox="0 0 34 44" style="filter:drop-shadow(0 4px 6px rgba(31,58,43,.4))"><path d="M17 43S2 27.5 2 17a15 15 0 1 1 30 0C32 27.5 17 43 17 43Z" fill="#2f6b47" stroke="#fff" stroke-width="3"/><circle cx="17" cy="17" r="6" fill="#fff"/></svg>`,
 });
 
 function ClickToPin({ onPick }: { onPick: (p: LatLng) => void }) {
@@ -56,6 +56,12 @@ function ClickToPin({ onPick }: { onPick: (p: LatLng) => void }) {
  * Flies so the target lands in the upper part of the screen, clear of the
  * results card. `target.key` changes on every request, even for the same spot.
  */
+function ExposeMap({ onReady }: { onReady?: (map: L.Map) => void }) {
+  const map = useMap();
+  useEffect(() => onReady?.(map), [map, onReady]);
+  return null;
+}
+
 function FlyTo({ target, zoom }: { target: (LatLng & { key: number }) | null; zoom: number }) {
   const map = useMap();
   useEffect(() => {
@@ -76,6 +82,7 @@ export default function FindMap({
   focusedId,
   onFocus,
   flyTarget,
+  onReady,
 }: {
   initialCenter: LatLng;
   pin: LatLng | null;
@@ -84,6 +91,8 @@ export default function FindMap({
   focusedId: string | null;
   onFocus: (id: string) => void;
   flyTarget: (LatLng & { key: number }) | null;
+  /** Hands the Leaflet map to the page, e.g. to pin the current center from the keyboard. */
+  onReady?: (map: L.Map) => void;
 }) {
   const icons = useMemo(
     () => new Map(reviews.map((r) => [r.review.id, reviewIcon(r, r.review.id === focusedId)])),
@@ -103,6 +112,7 @@ export default function FindMap({
       <TileLayer url={LABELS_URL} maxNativeZoom={19} maxZoom={19} />
       <ClickToPin onPick={onPick} />
       <FlyTo target={flyTarget} zoom={16} />
+      <ExposeMap onReady={onReady} />
 
       {pin && (
         <>
@@ -122,6 +132,8 @@ export default function FindMap({
           icon={icons.get(r.review.id)!}
           eventHandlers={{ click: () => onFocus(r.review.id) }}
           zIndexOffset={r.review.id === focusedId ? 1000 : 0}
+          title={`${r.review.placeName} by ${r.author.name}`}
+          keyboard
         >
           <Popup>
             <strong>{r.review.placeName}</strong>

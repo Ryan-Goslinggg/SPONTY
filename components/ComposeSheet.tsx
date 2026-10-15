@@ -65,7 +65,7 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
           {photos.map((src, i) => (
             <div key={i} className="relative h-20 w-20 animate-pop overflow-hidden rounded-2xl">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src} alt="" className="h-full w-full object-cover" />
+              <img src={src} alt={`Photo ${i + 1} to share`} className="h-full w-full object-cover" />
               <button
                 type="button"
                 aria-label="Remove photo"
@@ -100,6 +100,9 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
           className="input resize-none"
         />
       </Field>
+      <p className="text-xs text-ink-soft">
+        Everyone on Sponty can see this trip. Photo location data is removed before saving.
+      </p>
       <button
         type="submit"
         disabled={!canPost}

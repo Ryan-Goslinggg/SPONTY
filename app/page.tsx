@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ComposeSheet } from "@/components/ComposeSheet";
 import { PlusIcon } from "@/components/icons";
+import { LegalFooter } from "@/components/LegalPage";
 import { PostCard } from "@/components/PostCard";
 import { TopBar } from "@/components/TopBar";
 import { useStore } from "@/lib/store";
@@ -43,6 +44,8 @@ export default function HomePage() {
           That&apos;s every trip for now. Close the app and go make your own.
         </p>
       </div>
+
+      <LegalFooter />
 
       <ComposeSheet open={composing} onClose={() => setComposing(false)} />
     </div>
