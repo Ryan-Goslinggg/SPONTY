@@ -40,12 +40,21 @@ export async function reverseGeocode({ lat, lng }: LatLng): Promise<string | nul
   }
 }
 
+/** Thrown when the browser or the user has blocked location access. */
+export class PermissionDeniedError extends Error {
+  constructor(message = "Permission was denied") {
+    super(message);
+    this.name = "PermissionDeniedError";
+  }
+}
+
 export function getCurrentPosition(): Promise<LatLng> {
   return new Promise((resolve, reject) => {
     if (!("geolocation" in navigator)) return reject(new Error("Location is not available on this device"));
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => reject(new Error("Couldn't get your location")),
+      (err) =>
+        reject(err.code === err.PERMISSION_DENIED ? new PermissionDeniedError() : new Error("Couldn't get your location")),
       { enableHighAccuracy: true, timeout: 10_000 },
     );
   });

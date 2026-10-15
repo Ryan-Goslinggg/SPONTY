@@ -49,9 +49,14 @@ const toCandidate = (u: User): MatchCandidate => ({ id: u.id, name: u.name, bio:
  * the database, never the request, so nobody can spend AI credits on
  * arbitrary prompts. Returns the candidates' profiles alongside the scores.
  */
-export async function POST() {
+const RequestSchema = z.object({ ai: z.boolean().default(false) }).default({ ai: false });
+
+export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in to see suggestions" }, { status: 401 });
+
+  // Profiles only go to Claude when the user has opted in to AI matching.
+  const { ai } = RequestSchema.parse(await req.json().catch(() => undefined));
 
   const db = getDb();
   for (const l of LIMITS) {
@@ -66,7 +71,9 @@ export async function POST() {
 
   const [meUser, pool] = await Promise.all([getUser(db, user.id), suggestionPool(db, user.id)]);
   if (!meUser || pool.length === 0) return Response.json({ source: "heuristic", matches: [], users: pool });
-  const { source, matches } = await score(toCandidate(meUser), pool.map(toCandidate));
+  const { source, matches } = ai
+    ? await score(toCandidate(meUser), pool.map(toCandidate))
+    : { source: "heuristic" as const, matches: heuristic(toCandidate(meUser), pool.map(toCandidate)) };
   return Response.json({ source, matches, users: pool });
 }
 

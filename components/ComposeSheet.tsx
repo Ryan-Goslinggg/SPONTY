@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { compressPhoto } from "@/lib/image";
 import { useStore } from "@/lib/store";
 import type { Place } from "@/lib/types";
-import { CameraIcon, CloseIcon } from "./icons";
+import { CameraIcon, CloseIcon, ImageIcon } from "./icons";
+import { usePermissions } from "./PermissionProvider";
 import { PlacePicker } from "./PlacePicker";
 import { Field } from "./ProfileSheet";
 import { Sheet } from "./Sheet";
@@ -31,6 +32,8 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [posting, setPosting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const captureRef = useRef<HTMLInputElement>(null);
+  const { takePhoto } = usePermissions();
 
   // Free preview URLs when photos are removed or the sheet closes.
   const previews = useRef(new Set<string>());
@@ -45,12 +48,27 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
     setPhotos(photos.filter((_, j) => j !== i));
   }
 
+  async function onCamera() {
+    try {
+      const photo = await takePhoto();
+      // No in-browser camera (e.g. an older browser): let the phone's own camera app do it.
+      if (photo === "unsupported") return captureRef.current?.click();
+      if (photo) await addPhotos([photo]);
+    } catch {
+      // The user chose "Not now".
+    }
+  }
+
   async function onFiles(files: FileList | null) {
     if (!files?.length) return;
+    await addPhotos([...files]);
+  }
+
+  async function addPhotos(files: Blob[]) {
     setBusy(true);
     try {
       const room = MAX_PHOTOS - photos.length;
-      const blobs = await Promise.all([...files].slice(0, room).map((f) => compressPhoto(f)));
+      const blobs = await Promise.all(files.slice(0, room).map((f) => compressPhoto(f)));
       const next = blobs.map((blob) => ({ blob, preview: URL.createObjectURL(blob) }));
       next.forEach((p) => previews.current.add(p.preview));
       setPhotos((p) => [...p, ...next]);
@@ -59,6 +77,7 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";
+      if (captureRef.current) captureRef.current.value = "";
     }
   }
 
@@ -86,7 +105,7 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
           {photos.map(({ preview }, i) => (
             <div key={preview} className="relative h-20 w-20 animate-pop overflow-hidden rounded-2xl">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={preview} alt="" className="h-full w-full object-cover" />
+              <img src={preview} alt={`Photo ${i + 1} to share`} className="h-full w-full object-cover" />
               <button
                 type="button"
                 aria-label="Remove photo"
@@ -99,18 +118,37 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
             </div>
           ))}
           {photos.length < MAX_PHOTOS && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => fileRef.current?.click()}
-              className="press flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-mint-300 text-xs font-bold text-mint-600 hover:bg-mint-50"
-            >
-              <CameraIcon size={20} />
-              {busy ? "..." : "Add"}
-            </button>
+            <>
+              <button
+                type="button"
+                disabled={busy || posting}
+                onClick={onCamera}
+                className="press flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-mint-300 text-xs font-bold text-mint-700 hover:bg-mint-50"
+              >
+                <CameraIcon size={20} />
+                {busy ? "..." : "Camera"}
+              </button>
+              <button
+                type="button"
+                disabled={busy || posting}
+                onClick={() => fileRef.current?.click()}
+                className="press flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-mint-300 text-xs font-bold text-mint-700 hover:bg-mint-50"
+              >
+                <ImageIcon size={20} />
+                {busy ? "..." : "Gallery"}
+              </button>
+            </>
           )}
         </div>
         <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => onFiles(e.target.files)} />
+        <input
+          ref={captureRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onChange={(e) => onFiles(e.target.files)}
+        />
       </Field>
       <Field label="What happened?">
         <textarea
@@ -122,6 +160,9 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
           className="input resize-none"
         />
       </Field>
+      <p className="text-xs text-ink-soft">
+        Everyone on Sponty can see this trip. Photo location data is removed before saving.
+      </p>
       <button
         type="submit"
         disabled={!canPost}

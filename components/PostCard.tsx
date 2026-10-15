@@ -5,6 +5,7 @@ import { timeAgo } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { Post } from "@/lib/types";
 import { Avatar } from "./Avatar";
+import { DemoBadge } from "./DemoBadge";
 import { HeartIcon, PinIcon } from "./icons";
 
 export function PostCard({ post, index }: { post: Post; index: number }) {
@@ -41,6 +42,7 @@ export function PostCard({ post, index }: { post: Post; index: number }) {
                 friend
               </span>
             )}
+            <DemoBadge userId={author.id} />
           </div>
           <div className="flex items-center gap-1 text-xs font-semibold text-ink-soft">
             <PinIcon size={12} />
@@ -54,7 +56,10 @@ export function PostCard({ post, index }: { post: Post; index: number }) {
       {post.photos.length > 0 && (
         <div className="relative">
           <div
-            className="no-scrollbar flex aspect-[4/3] snap-x snap-mandatory overflow-x-auto bg-mint-100"
+            className="no-scrollbar flex aspect-[4/3] snap-x snap-mandatory overflow-x-auto bg-mint-100 focus-visible:outline-offset-[-3px]"
+            tabIndex={post.photos.length > 1 ? 0 : undefined}
+            role={post.photos.length > 1 ? "region" : undefined}
+            aria-label={post.photos.length > 1 ? `${post.photos.length} photos, use arrow keys to scroll` : undefined}
             onScroll={(e) => {
               const el = e.currentTarget;
               setSlide(Math.round(el.scrollLeft / el.clientWidth));
@@ -67,7 +72,7 @@ export function PostCard({ post, index }: { post: Post; index: number }) {
               <img
                 key={i}
                 src={src}
-                alt={`${post.place.name} photo ${i + 1}`}
+                alt={`Photo ${i + 1} of ${post.photos.length} from ${post.place.name}${post.caption ? `: ${post.caption.slice(0, 80)}` : ""}`}
                 loading="lazy"
                 draggable={false}
                 className="h-full w-full shrink-0 snap-center object-cover"
@@ -101,7 +106,7 @@ export function PostCard({ post, index }: { post: Post; index: number }) {
           onClick={() => toggleLike(post.id)}
           aria-pressed={liked}
           aria-label={liked ? "Unlike" : "Like"}
-          className={`press -ml-1.5 flex items-center gap-1.5 rounded-full px-1.5 py-1 text-sm font-bold ${liked ? "text-rose-400" : "text-ink-soft hover:text-rose-400"}`}
+          className={`press -ml-1.5 flex items-center gap-1.5 rounded-full px-1.5 py-1 text-sm font-bold ${liked ? "text-rose-600" : "text-ink-soft hover:text-rose-600"}`}
         >
           <HeartIcon size={22} filled={liked} className={liked ? "animate-pop" : ""} />
           {post.likeCount}
