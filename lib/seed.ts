@@ -111,7 +111,7 @@ export function createSeed(now = Date.now()) {
 
   const friends = ["u_mika", "u_paolo", "u_andrea", "u_jules"];
 
-  const photo = (seed: string) => `https://picsum.photos/seed/${seed}/900/700`;
+  const photo = (id: number) => `https://picsum.photos/id/${id}/900/700`;
 
   const posts: Post[] = [
     {
@@ -119,7 +119,7 @@ export function createSeed(now = Date.now()) {
       authorId: "u_mika",
       place: { name: "Poblacion, Makati", lat: 14.5649, lng: 121.03 },
       caption: "Unplanned food crawl turned into the best night of the month. That tiny ramen bar on the corner? Go.",
-      photos: [photo("sponty-pob-1"), photo("sponty-pob-2")],
+      photos: [photo(1047), photo(292)],
       createdAt: now - 3 * HOUR,
       likes: ["u_paolo", "u_jules"],
     },
@@ -128,7 +128,7 @@ export function createSeed(now = Date.now()) {
       authorId: "u_bea",
       place: { name: "Mt. Ulap, Benguet", lat: 16.3, lng: 120.63 },
       caption: "Woke up at 3am for this sea of clouds. Worth every step.",
-      photos: [photo("sponty-ulap-1")],
+      photos: [photo(1018)],
       createdAt: now - 9 * HOUR,
       likes: ["u_leo"],
     },
@@ -137,7 +137,7 @@ export function createSeed(now = Date.now()) {
       authorId: "u_paolo",
       place: { name: "San Juan, La Union", lat: 16.6696, lng: 120.3214 },
       caption: "Flat waves, so we hiked to the falls instead. Spontaneous plan B always wins.",
-      photos: [photo("sponty-elyu-1"), photo("sponty-elyu-2"), photo("sponty-elyu-3")],
+      photos: [photo(16), photo(1039), photo(28)],
       createdAt: now - 1 * DAY,
       likes: ["u_mika", ME_ID],
     },
@@ -146,7 +146,7 @@ export function createSeed(now = Date.now()) {
       authorId: "u_carlo",
       place: { name: "Moalboal, Cebu", lat: 9.9396, lng: 123.3699 },
       caption: "Sardine run this morning. Millions of them, ten meters from the shore.",
-      photos: [photo("sponty-moalboal-1")],
+      photos: [photo(1050)],
       createdAt: now - 2 * DAY,
       likes: [],
     },
@@ -155,7 +155,7 @@ export function createSeed(now = Date.now()) {
       authorId: "u_jules",
       place: { name: "Intramuros, Manila", lat: 14.5896, lng: 120.9747 },
       caption: "Calesa ride, then halo-halo in a 100 year old building. Old Manila never gets old.",
-      photos: [photo("sponty-intra-1")],
+      photos: [photo(1059)],
       createdAt: now - 3 * DAY,
       likes: ["u_andrea", "u_tess"],
     },
@@ -164,7 +164,7 @@ export function createSeed(now = Date.now()) {
       authorId: "u_leo",
       place: { name: "Tagaytay Ridge", lat: 14.1153, lng: 120.9621 },
       caption: "60km on the bike for one cup of coffee and this view of Taal.",
-      photos: [photo("sponty-taal-1")],
+      photos: [photo(1015)],
       createdAt: now - 4 * DAY,
       likes: ["u_bea"],
     },

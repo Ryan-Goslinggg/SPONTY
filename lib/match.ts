@@ -57,13 +57,14 @@ export function heuristicMatch(me: MatchCandidate, candidate: MatchCandidate): M
 
   const score = Math.round(100 * (0.5 * hobbyScore + 0.2 * bioScore + 0.3 * prox));
 
-  const parts: string[] = [];
-  if (shared.length) parts.push(`You both like ${shared.slice(0, 2).join(" & ").toLowerCase()}`);
-  else if (bioShared) parts.push("Your bios have a similar vibe");
-  else parts.push("Different interests - could be a fun new perspective");
-  parts.push(meters < 2000 ? "right around you" : `${formatDistance(meters)} away`);
+  let reason: string;
+  if (shared.length) reason = `You both like ${shared.slice(0, 2).join(" & ").toLowerCase()}`;
+  else if (bioShared) reason = "Your bios have a similar vibe";
+  else reason = "Different interests - could be a fun new perspective";
+  if (meters < 5000) reason += ", and you're close enough to meet up";
+  else if (meters > 200_000) reason += `, though ${formatDistance(meters)} apart`;
 
-  return { id: candidate.id, score: clampScore(score), reason: parts.join(", ") };
+  return { id: candidate.id, score: clampScore(score), reason: `${reason}.` };
 }
 
 export function clampScore(score: number): number {

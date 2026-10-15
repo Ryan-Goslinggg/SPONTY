@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+@theme {
+  --color-mint-50: #f4faf6;
+  --color-mint-100: #e6f4ea;
+  --color-mint-200: #cde9d6;
+  --color-mint-300: #a8d8b8;
+  --color-mint-400: #7fc196;
+  --color-mint-500: #5aa877;
+  --color-mint-600: #438c5f;
+  --color-mint-700: #35704c;
+  --color-ink: #1f3a2b;
+  --color-ink-soft: #5b7466;
+
+  --font-sans: var(--font-nunito), ui-rounded, system-ui, sans-serif;
+
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --animate-fade-up: fade-up 0.35s var(--ease-bounce) both;
+  --animate-sheet-up: sheet-up 0.38s var(--ease-bounce) both;
+  --animate-fade-in: fade-in 0.2s ease-out both;
+  --animate-pop: pop 0.45s var(--ease-bounce) both;
+  --animate-heart: heart 0.8s ease-out both;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes sheet-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes pop {
+    0% { transform: scale(0.6); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes heart {
+    0% { transform: scale(0); opacity: 0; }
+    25% { transform: scale(1.2); opacity: 1; }
+    60% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1.1); opacity: 0; }
+  }
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to { background-position: 200% 0; }
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background: var(--color-mint-50);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.press {
+  transition: transform 0.18s var(--ease-bounce), background-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.press:active {
+  transform: scale(0.94);
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--color-mint-100) 25%, var(--color-mint-200) 50%, var(--color-mint-100) 75%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* Leaflet tweaks so the map matches the soft theme */
+.leaflet-container {
+  font-family: inherit;
+  background: var(--color-mint-100);
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgb(31 58 43 / 0.18);
+}
+.leaflet-popup-content {
+  margin: 12px 14px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: 0 4px 14px rgb(31 58 43 / 0.15) !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+}
+.leaflet-control-zoom a {
+  color: var(--color-mint-700) !important;
+}
+.sponty-pin {
+  transition: transform 0.25s var(--ease-bounce);
+}
+.sponty-pin:hover {
+  transform: scale(1.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@utility input {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid var(--color-mint-200);
+  background: var(--color-mint-50);
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  &:focus {
+    border-color: var(--color-mint-400);
+    box-shadow: 0 0 0 3px rgb(127 193 150 / 0.25);
+  }
+}

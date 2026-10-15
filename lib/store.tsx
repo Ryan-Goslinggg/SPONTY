@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useToast } from "@/components/Toast";
 import { createSeed, ME_ID, type SeedState } from "./seed";
 import type { Place, Post, Review, User } from "./types";
 
@@ -30,9 +31,6 @@ function load(): State | null {
 interface Store {
   state: State;
   me: User;
-  hydrated: boolean;
-  /** Set when localStorage is full (usually from big photos). */
-  storageError: string | null;
   userById: (id: string) => User | undefined;
   isFriend: (id: string) => boolean;
   updateProfile: (patch: Partial<Pick<User, "name" | "bio" | "hobbies" | "location">>) => void;
@@ -47,32 +45,42 @@ interface Store {
 const StoreContext = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<State>(() => createSeed());
-  const [hydrated, setHydrated] = useState(false);
-  const [storageError, setStorageError] = useState<string | null>(null);
-  const skipSave = useRef(true);
+  const [initial, setInitial] = useState<State | null>(null);
 
   useEffect(() => {
-    const saved = load();
-    // Loading persisted state has to happen after mount to keep SSR markup stable.
+    // Data lives on this device, so it can only be read after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (saved) setState(saved);
-    setHydrated(true);
+    setInitial(load() ?? createSeed());
   }, []);
 
+  if (!initial) return <Splash />;
+  return <LoadedStore initial={initial}>{children}</LoadedStore>;
+}
+
+function Splash() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center" aria-label="Loading">
+      <span className="animate-pop text-3xl font-black tracking-tight text-mint-500">sponty</span>
+    </div>
+  );
+}
+
+function LoadedStore({ initial, children }: { initial: State; children: React.ReactNode }) {
+  const [state, setState] = useState<State>(initial);
+  const toast = useToast();
+  const isFirstRender = useRef(true);
+
   useEffect(() => {
-    if (!hydrated) return;
-    if (skipSave.current) {
-      skipSave.current = false;
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
       return;
     }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      setStorageError(null);
     } catch {
-      setStorageError("Storage is full. Try sharing fewer or smaller photos.");
+      toast("Storage is full - this change won't survive a reload. Try fewer photos.");
     }
-  }, [state, hydrated]);
+  }, [state, toast]);
 
   const update = useCallback((fn: (s: State) => State) => setState(fn), []);
 
@@ -81,8 +89,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return {
       state,
       me,
-      hydrated,
-      storageError,
       userById: (id) => state.users.find((u) => u.id === id),
       isFriend: (id) => state.friends.includes(id),
       updateProfile: (patch) =>
@@ -125,7 +131,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setState(createSeed());
       },
     };
-  }, [state, hydrated, storageError, update]);
+  }, [state, update]);
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }
