@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Nunito } from "next/font/google";
+import { connection } from "next/server";
 import { CookieNotice } from "@/components/CookieNotice";
 import { PermissionProvider } from "@/components/PermissionProvider";
 import { ToastProvider } from "@/components/Toast";
@@ -20,7 +21,10 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Render every page per request: Next.js stamps the CSP nonce from proxy.ts
+  // onto its scripts, which a page prerendered at build time can't carry.
+  await connection();
   return (
     <html lang="en" className={nunito.variable}>
       <body className="min-h-dvh font-sans antialiased">

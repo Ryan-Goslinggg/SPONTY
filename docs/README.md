@@ -7,6 +7,7 @@ For a quick overview and setup steps, start with the [main README](../README.md)
 
 | Page | What it covers | Status |
 | --- | --- | --- |
+| [Security](../SECURITY.md) | Threat model, defenses, the attack and load test suites, and accepted risks | Done |
 | [Compliance checklist](compliance.md) | Legal pages, consents, privacy, fake-review safeguards, accessibility, and what you still need to fill in | Done |
 | [Third-party services and licenses](third-party-services.md) | Every outside service, what data it receives, and asset and code licenses | Done |
 | Architecture | How the app, data layer, and API routes fit together | Coming soon |

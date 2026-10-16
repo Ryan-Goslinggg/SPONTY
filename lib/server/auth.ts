@@ -2,11 +2,17 @@ import "server-only";
 import { waitUntil } from "@vercel/functions";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { headers } from "next/headers";
+import { createHash } from "node:crypto";
 import { cache } from "react";
 import { getDb } from "./db";
 import { accounts, authRateLimits, sessions, users, verifications } from "./db/schema";
+import { consumeRateLimit } from "./queries";
+
+/** Failed or not, each account can be tried this many times per window, whatever IP the guesses come from. */
+const SIGN_IN_PER_EMAIL = { max: 10, windowSec: 15 * 60 };
 
 function hostOf(url: string | undefined): string | undefined {
   if (!url) return undefined;
@@ -32,8 +38,30 @@ function allowedHosts(): string[] {
   return [...new Set(hosts.filter((h): h is string => !!h))];
 }
 
+/** The secret signs every session. A missing or short one in production is a deploy mistake, so fail loudly. */
+function authSecret(): string | undefined {
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (process.env.NODE_ENV === "production" && (!secret || secret.length < 32)) {
+    throw new Error("BETTER_AUTH_SECRET must be set to at least 32 random characters in production.");
+  }
+  return secret;
+}
+
+/**
+ * Which header holds the client's real IP for per-IP limits. On Vercel,
+ * x-vercel-forwarded-for is set by the platform and can't be forged by the
+ * client. Elsewhere, x-forwarded-for is only as trustworthy as the proxy in
+ * front of the app, which is why sign-in is also limited per account.
+ */
+function ipAddressHeaders(): string[] {
+  return process.env.VERCEL ? ["x-vercel-forwarded-for", "x-real-ip"] : ["x-forwarded-for"];
+}
+
+const hashKey = (value: string) => createHash("sha256").update(value).digest("base64url").slice(0, 32);
+
 function createAuth() {
   return betterAuth({
+    secret: authSecret(),
     appName: "Sponty",
     baseURL: {
       allowedHosts: allowedHosts(),
@@ -67,7 +95,25 @@ function createAuth() {
         "/sign-up/email": { window: 60 * 60, max: 5 },
       },
     },
-    advanced: { backgroundTasks: { handler: waitUntil } },
+    hooks: {
+      // Per-account brute-force limit. The per-IP rule above can be dodged by
+      // rotating IPs; this one can't. The email is hashed so the limits table
+      // never stores addresses.
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/sign-in/email") return;
+        const email = String((ctx.body as { email?: unknown } | undefined)?.email ?? "").trim().toLowerCase();
+        if (!email) return;
+        const r = await consumeRateLimit(getDb(), `signin:${hashKey(email)}`, SIGN_IN_PER_EMAIL.max, SIGN_IN_PER_EMAIL.windowSec);
+        if (!r.ok) {
+          throw new APIError("TOO_MANY_REQUESTS", { message: "Too many sign-in attempts for this account. Try again later." });
+        }
+      }),
+    },
+    advanced: {
+      backgroundTasks: { handler: waitUntil },
+      ipAddress: { ipAddressHeaders: ipAddressHeaders() },
+      useSecureCookies: process.env.NODE_ENV === "production",
+    },
     // nextCookies lets server actions set auth cookies; it must stay last.
     plugins: [nextCookies()],
   });

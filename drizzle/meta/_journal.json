@@ -15,6 +15,20 @@
       "when": 1792084478772,
       "tag": "0001_geo_and_realtime",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792116182685,
+      "tag": "0002_profile_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792116184549,
+      "tag": "0003_coarsen_profile_locations",
+      "breakpoints": true
     }
   ]
 }
