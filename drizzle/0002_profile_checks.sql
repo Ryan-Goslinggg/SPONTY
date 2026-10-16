@@ -1,0 +1,2 @@
+ALTER TABLE "profiles" ADD CONSTRAINT "profiles_tint_hex" CHECK ("profiles"."tint" ~ '^#[0-9a-fA-F]{6}$');--> statement-breakpoint
+ALTER TABLE "profiles" ADD CONSTRAINT "profiles_handle_format" CHECK ("profiles"."handle" ~ '^[a-z0-9_]{1,30}$');

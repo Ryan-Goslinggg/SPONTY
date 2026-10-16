@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/server/auth";
-import { subscribe } from "@/lib/server/realtime";
+import { acquireStreamSlot, subscribe } from "@/lib/server/realtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +13,8 @@ const STREAM_MS = (maxDuration - 20) * 1000;
 export async function GET(req: Request) {
   const user = await getSessionUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
+  const releaseSlot = acquireStreamSlot(user.id);
+  if (!releaseSlot) return new Response("Too many open streams", { status: 429, headers: { "Retry-After": "30" } });
 
   const encoder = new TextEncoder();
   let cleanup = () => {};
@@ -33,6 +35,7 @@ export async function GET(req: Request) {
       const close = () => {
         if (closed) return;
         closed = true;
+        releaseSlot();
         clearInterval(timers.heartbeat);
         clearTimeout(timers.deadline);
         unsubscribe();

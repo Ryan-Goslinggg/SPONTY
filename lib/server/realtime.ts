@@ -77,6 +77,29 @@ async function connect(): Promise<Client> {
   return connecting;
 }
 
+/** Open streams one user may hold on one server instance (a few tabs and devices). */
+export const MAX_STREAMS_PER_USER = 5;
+const streamsPerUser = new Map<string, number>();
+
+/**
+ * Reserves one of the user's stream slots, synchronously so parallel
+ * requests can't race past the cap. Returns a release function, or null when
+ * the user already has too many streams open.
+ */
+export function acquireStreamSlot(userId: string): (() => void) | null {
+  const open = streamsPerUser.get(userId) ?? 0;
+  if (open >= MAX_STREAMS_PER_USER) return null;
+  streamsPerUser.set(userId, open + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const n = (streamsPerUser.get(userId) ?? 1) - 1;
+    if (n <= 0) streamsPerUser.delete(userId);
+    else streamsPerUser.set(userId, n);
+  };
+}
+
 /** Subscribes a stream to events for `userId`. Resolves once the listener is live. */
 export async function subscribe(userId: string, onEvent: Listener, onDisconnect: () => void): Promise<() => void> {
   if (idleTimer) {

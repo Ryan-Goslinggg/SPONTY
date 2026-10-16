@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/Avatar";
+import { DemoBadge } from "@/components/DemoBadge";
 import { BackIcon, SendIcon } from "@/components/icons";
 import { useStore } from "@/lib/store";
 
@@ -42,7 +43,10 @@ export default function ChatThreadPage() {
         </Link>
         <Avatar user={friend} size={40} />
         <div className="min-w-0">
-          <p className="truncate font-extrabold">{friend.name}</p>
+          <p className="flex items-center gap-1.5 font-extrabold">
+            <span className="truncate">{friend.name}</span>
+            <DemoBadge userId={friend.id} />
+          </p>
           <p className="truncate text-xs font-semibold text-ink-soft">{friend.location.name}</p>
         </div>
       </header>

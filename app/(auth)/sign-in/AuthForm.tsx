@@ -86,7 +86,7 @@ export function AuthForm() {
           />
         </Field>
         {error && (
-          <p role="alert" className="rounded-2xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-600">
+          <p role="alert" className="rounded-2xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
             {error}
           </p>
         )}

@@ -13,7 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <StoreProvider initial={snapshot}>
-      <main className="mx-auto min-h-dvh w-full max-w-md px-4">{children}</main>
+      <main id="main" className="mx-auto min-h-dvh w-full max-w-md px-4">{children}</main>
       <BottomNav />
     </StoreProvider>
   );

@@ -43,6 +43,7 @@ export function sniffPhotoType(bytes: Uint8Array): PhotoType | null {
   return null;
 }
 
+
 export async function savePhoto(userId: string, bytes: Uint8Array, type: PhotoType): Promise<string> {
   assertStorageConfigured();
   const key = `${ownerPrefix(userId)}${randomUUID()}.${PHOTO_TYPES[type]}`;

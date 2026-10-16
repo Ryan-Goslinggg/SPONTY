@@ -11,6 +11,16 @@ const EARTH_RADIUS_M = 6_371_000;
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
 
+/** Round a coordinate to ~1km (2 decimals) so a stored location can't pinpoint a home. */
+export function coarsenCoord(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/** Coarsen a place's coordinates while keeping its name. */
+export function coarsenPlace<T extends LatLng>(place: T): T {
+  return { ...place, lat: coarsenCoord(place.lat), lng: coarsenCoord(place.lng) };
+}
+
 export function distanceMeters(a: LatLng, b: LatLng): number {
   const dLat = toRad(b.lat - a.lat);
   const dLng = toRad(b.lng - a.lng);

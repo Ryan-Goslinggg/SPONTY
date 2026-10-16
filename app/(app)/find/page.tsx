@@ -1,18 +1,24 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/Avatar";
+import { DemoBadge } from "@/components/DemoBadge";
 import type { MapReview } from "@/components/FindMap";
-import { LocateIcon, PlusIcon, SearchIcon, StarIcon } from "@/components/icons";
+import { LocateIcon, PinIcon, PlusIcon, SearchIcon, StarIcon } from "@/components/icons";
+import { usePermissions } from "@/components/PermissionProvider";
 import { Field } from "@/components/ProfileSheet";
 import { Sheet } from "@/components/Sheet";
 import { useToast } from "@/components/Toast";
 import { timeAgo } from "@/lib/format";
 import { distanceMeters, PIN_DIAMETER_M } from "@/lib/geo";
-import { getCurrentPosition, searchPlaces } from "@/lib/geocode";
+import { searchPlaces } from "@/lib/geocode";
+import { isCancelled } from "@/lib/permissions";
+import { reportReview, useReportedReviewIds } from "@/lib/reports";
+import { hasReviewedPlace } from "@/lib/reviews";
 import { useNearbyReviews, useStore } from "@/lib/store";
-import type { LatLng, Place, ReviewCategory } from "@/lib/types";
+import type { LatLng, Place, Review, ReviewCategory } from "@/lib/types";
+import type { Map as LeafletMap } from "leaflet";
 
 // Leaflet touches `window`, so the map only renders in the browser.
 const FindMap = dynamic(() => import("@/components/FindMap"), {
@@ -31,6 +37,9 @@ export default function FindPage() {
   const [flyTarget, setFlyTarget] = useState<(LatLng & { key: number }) | null>(null);
   const [expanded, setExpanded] = useState(true);
   const [reviewing, setReviewing] = useState(false);
+  const reported = useReportedReviewIds();
+  const { requestLocation } = usePermissions();
+  const mapRef = useRef<LeafletMap | null>(null);
 
   const dropPin = useCallback((p: LatLng, fly = false) => {
     setPin(p);
@@ -41,25 +50,26 @@ export default function FindPage() {
 
   // Everyone's reviews inside the circle, nearest first, straight from the radius query.
   const nearby = useNearbyReviews(pin);
+  const inCircle = useMemo(() => nearby.reviews.filter((r) => !reported.includes(r.id)), [nearby.reviews, reported]);
 
   const visible: MapReview[] = useMemo(
     () =>
-      nearby.reviews
+      inCircle
         .filter((r) => mode === "open" || r.authorId === me.id || isFriend(r.authorId))
         .map((review) => ({ review, author: userById(review.authorId)!, friend: isFriend(review.authorId) }))
         .filter((r) => r.author),
-    [nearby.reviews, mode, me.id, isFriend, userById],
+    [inCircle, mode, me.id, isFriend, userById],
   );
 
   // How many more pins the other mode would reveal, to nudge switching.
-  const hiddenInOpen = mode === "close" ? nearby.reviews.length - visible.length : 0;
+  const hiddenInOpen = mode === "close" ? inCircle.length - visible.length : 0;
 
   async function locate() {
     try {
-      const p = await getCurrentPosition();
+      const p = await requestLocation();
       dropPin(p, true);
     } catch (e) {
-      toast((e as Error).message);
+      if (!isCancelled(e)) toast((e as Error).message);
     }
   }
 
@@ -77,6 +87,9 @@ export default function FindPage() {
             setExpanded(true);
           }}
           flyTarget={flyTarget}
+          onReady={(m) => {
+            mapRef.current = m;
+          }}
         />
       </div>
 
@@ -93,6 +106,16 @@ export default function FindPage() {
             <LocateIcon />
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            const c = mapRef.current?.getCenter();
+            if (c) dropPin({ lat: c.lat, lng: c.lng }, true);
+          }}
+          className="pointer-events-auto sr-only flex items-center gap-1 rounded-full bg-white px-3 py-2 text-xs font-bold text-mint-700 shadow-lg focus:not-sr-only"
+        >
+          <PinIcon size={14} /> Drop pin at map center
+        </button>
         <div className="pointer-events-auto relative mx-auto grid w-56 grid-cols-2 rounded-full bg-white/95 p-1 shadow-lg backdrop-blur">
           <span
             aria-hidden="true"
@@ -174,10 +197,24 @@ export default function FindPage() {
                               {author.id === me.id ? "You" : author.name}
                               {friend && " · friend"} · {timeAgo(review.createdAt)}
                             </span>
+                            <DemoBadge userId={author.id} />
                           </div>
                           <p className="mt-0.5 text-sm leading-snug">{review.text}</p>
                         </div>
                       </button>
+                      {author.id !== me.id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            reportReview(review.id);
+                            toast("Thanks - that review is hidden");
+                          }}
+                          className="ml-[3.6rem] rounded text-[11px] font-bold text-ink-soft underline-offset-2 hover:text-ink hover:underline"
+                          aria-label={`Report review of ${review.placeName} as fake or abusive`}
+                        >
+                          Report
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -197,14 +234,14 @@ export default function FindPage() {
         </section>
       )}
 
-      <ReviewSheet open={reviewing} onClose={() => setReviewing(false)} at={pin} />
+      <ReviewSheet open={reviewing} onClose={() => setReviewing(false)} at={pin} nearbyReviews={nearby.reviews} />
     </div>
   );
 }
 
 function Stars({ value }: { value: number }) {
   return (
-    <span className="flex text-amber-400" aria-label={`${value} out of 5 stars`}>
+    <span className="flex text-amber-700" aria-label={`${value} out of 5 stars`}>
       {[1, 2, 3, 4, 5].map((i) => (
         <StarIcon key={i} size={12} filled={i <= value} />
       ))}
@@ -260,29 +297,42 @@ function PlaceSearch({ onSelect }: { onSelect: (p: Place) => void }) {
               </button>
             </li>
           ))}
+          <li className="px-4 pb-2 pt-1 text-[10px] text-ink-soft">Search data © OpenStreetMap contributors</li>
         </ul>
       )}
     </div>
   );
 }
 
-function ReviewSheet({ open, onClose, at }: { open: boolean; onClose: () => void; at: LatLng | null }) {
+function ReviewSheet({
+  open,
+  onClose,
+  at,
+  nearbyReviews,
+}: {
+  open: boolean;
+  onClose: () => void;
+  at: LatLng | null;
+  nearbyReviews: Review[];
+}) {
   return (
     <Sheet open={open} onClose={onClose} title="Add a review">
-      {open && at && <ReviewForm at={at} onDone={onClose} />}
+      {open && at && <ReviewForm at={at} nearbyReviews={nearbyReviews} onDone={onClose} />}
     </Sheet>
   );
 }
 
-function ReviewForm({ at, onDone }: { at: LatLng; onDone: () => void }) {
-  const { addReview } = useStore();
+function ReviewForm({ at, nearbyReviews, onDone }: { at: LatLng; nearbyReviews: Review[]; onDone: () => void }) {
+  const { addReview, me } = useStore();
   const toast = useToast();
   const [placeName, setPlaceName] = useState("");
   const [category, setCategory] = useState<ReviewCategory>("food");
   const [rating, setRating] = useState(5);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
-  const valid = placeName.trim() && text.trim();
+  const [beenThere, setBeenThere] = useState(false);
+  const duplicate = placeName.trim() !== "" && hasReviewedPlace(nearbyReviews, me.id, placeName, at);
+  const valid = placeName.trim() && text.trim() && beenThere && !duplicate;
 
   return (
     <form
@@ -300,7 +350,19 @@ function ReviewForm({ at, onDone }: { at: LatLng; onDone: () => void }) {
     >
       <p className="-mt-2 text-xs text-ink-soft">Your review is pinned where you dropped the pin.</p>
       <Field label="Place name">
-        <input value={placeName} onChange={(e) => setPlaceName(e.target.value)} maxLength={80} placeholder="e.g. Corner ramen bar" className="input" />
+        <input
+          value={placeName}
+          onChange={(e) => setPlaceName(e.target.value)}
+          maxLength={80}
+          placeholder="e.g. Corner ramen bar"
+          className="input"
+          aria-describedby={duplicate ? "duplicate-review" : undefined}
+        />
+        {duplicate && (
+          <p id="duplicate-review" role="alert" className="mt-1.5 text-xs font-bold text-rose-700">
+            You already reviewed this place. One review per place keeps ratings honest.
+          </p>
+        )}
       </Field>
       <Field label="What is it?">
         <div className="grid grid-cols-2 gap-2">
@@ -323,7 +385,7 @@ function ReviewForm({ at, onDone }: { at: LatLng; onDone: () => void }) {
         </div>
       </Field>
       <Field label="Rating">
-        <div className="flex gap-1 text-amber-400">
+        <div className="flex gap-1 text-amber-700">
           {[1, 2, 3, 4, 5].map((i) => (
             <button key={i} type="button" onClick={() => setRating(i)} aria-label={`${i} stars`} className="press">
               <StarIcon size={32} filled={i <= rating} />
@@ -341,6 +403,18 @@ function ReviewForm({ at, onDone }: { at: LatLng; onDone: () => void }) {
           className="input resize-none"
         />
       </Field>
+      <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-mint-200 p-3 text-sm leading-snug">
+        <input
+          type="checkbox"
+          checked={beenThere}
+          onChange={(e) => setBeenThere(e.target.checked)}
+          className="mt-0.5 h-5 w-5 shrink-0 accent-mint-500"
+        />
+        <span>
+          I&apos;ve actually been here, and I&apos;m not being paid or rewarded for this review.
+        </span>
+      </label>
+      <p className="text-xs text-ink-soft">Your friends see this review, and everyone does in OPEN mode.</p>
       <button
         type="submit"
         disabled={!valid || busy}

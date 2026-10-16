@@ -123,6 +123,9 @@ export const profiles = pgTable(
   // The GiST index on ll_to_earth(lat, lng) used for nearest-people suggestions is in a hand-written migration.
   (t) => [
     check("profiles_bio_len", sql`char_length(${t.bio}) <= 600`),
+    // The tint is interpolated into map marker HTML, so only a plain hex colour may ever be stored.
+    check("profiles_tint_hex", sql`${t.tint} ~ '^#[0-9a-fA-F]{6}$'`),
+    check("profiles_handle_format", sql`${t.handle} ~ '^[a-z0-9_]{1,30}$'`),
     check("profiles_lat_range", sql`${t.lat} between -90 and 90`),
     check("profiles_lng_range", sql`${t.lng} between -180 and 180`),
   ],

@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { updateConsent, useConsent } from "@/lib/consent";
+import { coarsen } from "@/lib/privacy";
 import { useStore } from "@/lib/store";
 import type { Place } from "@/lib/types";
 import { CloseIcon } from "./icons";
+import { LegalFooter } from "./LegalPage";
 import { PlacePicker } from "./PlacePicker";
 import { Sheet } from "./Sheet";
 import { useToast } from "./Toast";
@@ -19,6 +22,7 @@ export function ProfileSheet({ open, onClose }: { open: boolean; onClose: () => 
 
 function ProfileForm({ onDone }: { onDone: () => void }) {
   const { me, updateProfile, signOut } = useStore();
+  const consent = useConsent();
   const toast = useToast();
   const [name, setName] = useState(me.name);
   const [bio, setBio] = useState(me.bio);
@@ -50,7 +54,7 @@ function ProfileForm({ onDone }: { onDone: () => void }) {
       <Field label="Name">
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} className="input" />
       </Field>
-      <Field label="Bio" hint="The AI uses this to find people you'll click with">
+      <Field label="Bio" hint="Used to suggest people you'll click with">
         <textarea value={bio} onChange={(e) => setBio(e.target.value)} maxLength={300} rows={3} className="input resize-none" />
       </Field>
       <Field label="Hobbies">
@@ -83,9 +87,28 @@ function ProfileForm({ onDone }: { onDone: () => void }) {
           </button>
         </div>
       </Field>
-      <Field label="Where you are">
-        <PlacePicker value={location} onChange={setLocation} />
+      <Field label="Where you are" hint="Saved to about 1 km, never your exact spot">
+        <PlacePicker value={location} onChange={(p) => setLocation({ ...p, lat: coarsen(p.lat), lng: coarsen(p.lng) })} />
       </Field>
+      <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-mint-200 p-3">
+        <input
+          type="checkbox"
+          checked={consent?.aiMatching ?? false}
+          onChange={(e) => {
+            updateConsent({ aiMatching: e.target.checked });
+            toast(e.target.checked ? "AI matching on" : "AI matching off");
+          }}
+          className="mt-0.5 h-5 w-5 shrink-0 accent-mint-500"
+        />
+        <span className="text-sm leading-snug">
+          <span className="font-bold">AI matching</span>
+          <span className="block text-xs text-ink-soft">
+            Sends your bio, hobbies, and area to Claude (Anthropic) for better friend suggestions. Off means suggestions use
+            simple matching on our server, with nothing sent to Anthropic.
+          </span>
+        </span>
+      </label>
+      <p className="text-xs text-ink-soft">Your name, bio, hobbies, and area are visible to everyone on Sponty.</p>
       <button
         type="submit"
         disabled={busy}
@@ -96,6 +119,7 @@ function ProfileForm({ onDone }: { onDone: () => void }) {
       <button type="button" onClick={() => void signOut()} className="w-full py-2 text-xs font-semibold text-ink-soft hover:text-ink">
         Sign out
       </button>
+      <LegalFooter />
     </form>
   );
 }
